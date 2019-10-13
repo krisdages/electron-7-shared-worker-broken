@@ -2,6 +2,7 @@
     <head>
         <script>
             let myWorker = null;
+            let dataURLWorker = null;
 
             // When true and remote module used in preload, the Chrome renderer process is orphaned/leaked
             // When false (regardless of if remote module is used in preload), the  Chrome renderer process is stopped along with all other electron processes
@@ -12,17 +13,67 @@
                     myWorker.port.start();
 
                     myWorker.port.onmessage = function(e) {
-                        alert(e.data);
-                    }
+                        document.querySelector("#result").innerText = e.data;
+                    };
 
                     myWorker.port.postMessage("Hello World");
                 });
             }
+
+            function postToWorker() {
+                myWorker.port.postMessage("Hello World");
+            }
+
+            function postToDataURLWorker() {
+            	if (!!dataURLWorker) {
+					dataURLWorker.port.postMessage("Hello World");
+				}
+            }
+
+            //In Electron 7, this will crash the renderer.
+            function createDataURLWorker() {
+            	if (dataURLWorker === null) {
+					const source = `
+					let count = 0;
+
+onconnect = function(e) {
+    var port = e.ports[0];
+
+    port.addEventListener('message', function(e) {
+        var workerResult = \`Result \${count++}: \` + e.data;
+        port.postMessage(workerResult);
+    });
+
+    port.start();
+}
+					`;
+					const url = 'data:application/javascript;base64,' + btoa(source);
+					dataURLWorker = new SharedWorker(url);
+
+					document.querySelector("#data-url-result").innerText = "Worker created, no clicks yet.";
+
+					dataURLWorker.port.start();
+
+					dataURLWorker.port.onmessage = function(e) {
+						document.querySelector("#data-url-result").innerText = e.data;
+					};
+
+					console.log(dataURLWorker);
+				}
+			}
         </script>
     </head>
     <body>
-        Electron Page with SharedWorker and Preload that causes Chromium renderer process to leak (doesn't exit with other electron processes)
+        Electron Page with SharedWorker
+        <button onclick="postToWorker()">Post to Worker</button>
+        <div id="result">No clicks yet.</div>
 
+		<br>
+		<br>
 
+		<button onclick="createDataURLWorker()">Create Worker with Data URL</button>
+		<br>
+		<button onclick="postToDataURLWorker()">Post to Data URL Worker</button>
+		<div id="data-url-result">Worker not created yet.</div>
     </body>
 </html>
